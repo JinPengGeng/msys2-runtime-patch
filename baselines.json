@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "repo": "REPLACE_OWNER/msys2-runtime-patch",
+  "repo": "JinPengGeng/msys2-runtime-patch",
   "comment": "keys = msys-2.0.dll ProductVersion prefix match (version-commit). match_on is compared case-insensitively against the DLL ProductVersion after trimming.",
   "baselines": [
     {
