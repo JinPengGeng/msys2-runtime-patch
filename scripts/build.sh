@@ -36,6 +36,10 @@ cd msys2-runtime
 # sourceware git:// protocol may be blocked on some runners; keep the git
 # source marker but force https transport.
 sed -i "s#git://sourceware.org/git/newlib-cygwin.git#git+https://sourceware.org/git/newlib-cygwin.git#g" PKGBUILD
+# 3.6.7-era sources hit -Werror on warnings newer GCC (15/16) diagnoses;
+# upstream fixed these later (e.g. "cygcheck: remove an unused variable
+# causing a build error with GCC 16"). Downgrade just this warning-to-error.
+sed -i 's/OPTIM="-O2"/OPTIM="-O2 -Wno-error=unused-but-set-variable"/' PKGBUILD
 echo "::endgroup::"
 
 echo "::group::Fetch sources + official msys2 patch set (makepkg --nobuild)"
