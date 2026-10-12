@@ -17,9 +17,10 @@ set -euo pipefail
 : "${RUNTIME_COMMIT:?}"
 : "${PKGBUILD_COMMIT:?}"
 : "${PATCH_FILE:?}"
-OUT_DIR="${OUT_DIR:-out}"
-
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# absolute: this script cd's into a mktemp workdir, and later workflow
+# steps (pwsh) read $OUT_DIR relative to the workspace root.
+OUT_DIR="${OUT_DIR:-${REPO_ROOT}/out}"
 PATCH_PATH="${REPO_ROOT}/${PATCH_FILE}"
 [ -f "$PATCH_PATH" ] || { echo "patch not found: $PATCH_PATH" >&2; exit 1; }
 
