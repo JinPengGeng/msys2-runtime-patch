@@ -1,0 +1,66 @@
+From: primeinc <noreply@primeinc.com>
+Subject: [PATCH] Cygwin: make a duplicate identical root mount a no-op, not
+ a fatal
+
+user_info::initialize() holds spinlock sversion while it calls
+mountinfo.init(false) and then internal_getpwsid().  init(false) adds "/"
+via create_root_entry() before the account lookup runs, so the shared
+mount table is populated while the lock is still held.
+
+If that lookup blocks longer than SPINLOCK_WAIT (15s) -- an unreachable
+domain controller is one way, but any stall does -- a second process
+waiting on the spinlock gives up and proceeds as the initializer:
+
+  spinlock.h:  if (val == -1)
+                 val = 0;  /* Timed out.  We'll initialize things ourselves. */
+
+It then runs mount_info::init(false) against the already-populated table.
+init() appends and never resets nmounts, so create_root_entry() calls
+add_item() for a "/" that already exists and is MOUNT_IMMUTABLE.  Without
+MOUNT_OVERRIDE that returns EPERM, and create_root_entry() turns it into
+
+  add_item ("\??\C:\...", "/", ...) failed, errno 1
+
+The second add is byte-identical to the first: same native path, same
+flags.  Treat it like the MOUNT_OVERRIDE case and break, which falls
+through to the existing "write over an existing mount item" path.  That
+re-inits the identical entry and, importantly, still sets root_idx --
+returning early instead skips it and trades this fatal for the
+root_idx < 0 fatal a few lines further down in init().
+
+Reproduced and verified with two DLLs built from this tree differing only
+in this hunk, with a 20s Sleep() injected into user_info::initialize()
+to make the stall deterministic: stock process B dies with add_item
+failed errno 1; patched, both processes start normally.
+
+Source: https://github.com/primeinc/msys2-runtime/commit/fix/add-item-idempotent-root
+(2026-09-04)
+
+---
+ winsup/cygwin/mount.cc | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/winsup/cygwin/mount.cc b/winsup/cygwin/mount.cc
+--- a/winsup/cygwin/mount.cc
++++ b/winsup/cygwin/mount.cc
+@@ -1665,6 +1665,17 @@ mount_info::add_item (const char *native, const char *posix,
+ 	      mountflags |= MOUNT_IMMUTABLE;
+ 	      break;
+ 	    }
++	  else if (!strcmp (mount[i].native_path, nativetmp)
++		   && mount[i].flags == mountflags)
++	    /* Re-adding a byte-identical immutable entry is a no-op, not an
++	       error.  A second process can run mount_info::init(false) against
++	       an already-populated shared mount table: the spinlock in
++	       user_info::initialize gives up after SPINLOCK_WAIT and lets a
++	       waiter proceed as the initializer, so create_root_entry runs a
++	       second time and would otherwise api_fatal on its own identical
++	       "/" entry.  Nothing is being overridden, so there is nothing to
++	       refuse.  */
++	    break;
+ 	  else
+ 	    {
+ 	      set_errno (EPERM);
+--
+2.14.x
+

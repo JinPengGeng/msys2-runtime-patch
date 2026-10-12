@@ -1,0 +1,76 @@
+From: Mike Glenn <ilude@users.noreply.github.com>
+Subject: [PATCH] Cygwin: make create_root_entry tolerant of concurrent mount
+ table initialization
+
+When multiple MSYS2 processes start concurrently, create_root_entry()
+can crash with:
+
+    fatal error - add_item ("\??\C:\Program Files\Git", "/", ...) failed, errno 1
+
+add_item() returns EPERM because it finds an existing immutable "/"
+mount entry and MOUNT_OVERRIDE is not set.
+
+If "/" already exists in the mount table when create_root_entry() runs,
+add_item() now overwrites it instead of returning EPERM. This makes the
+root mount initialization idempotent.
+
+Additionally, user_info::create() now uses the open_shared() overload
+that reports whether the shared memory mapping was newly created, and
+initializes it immediately in that case, before dll_crt0_1() reaches
+initialize() via the spinlock. This is a supplementary improvement, not
+the primary fix.
+
+Upstream: https://github.com/msys2/msys2-runtime/pull/333
+Tested on Windows 11 with parallel bash spawning from Claude Code;
+crash occurred consistently before the patch and has not recurred after.
+
+---
+ winsup/cygwin/mm/shared.cc | 7 +++++--
+ winsup/cygwin/mount.cc     | 3 ++-
+ 2 files changed, 6 insertions(+), 3 deletions(-)
+
+diff --git a/winsup/cygwin/mm/shared.cc b/winsup/cygwin/mm/shared.cc
+index 7977df382a..83f6f8ea2f 100644
+--- a/winsup/cygwin/mm/shared.cc
++++ b/winsup/cygwin/mm/shared.cc
+@@ -221,6 +221,7 @@ void
+ user_info::create (bool reinit)
+ {
+   WCHAR name[UNLEN + 1] = L""; /* Large enough for SID */
++  bool created = false;
+
+   if (reinit)
+     {
+@@ -236,11 +237,12 @@ user_info::create (bool reinit)
+
+   user_shared = (user_info *) open_shared (name, USER_VERSION,
+ 					   cygwin_user_h, sizeof (user_info),
+-					   SH_USER_SHARED, &sec_none);
+-  debug_printf ("opening user shared for '%W' at %p", name, user_shared);
++					   SH_USER_SHARED, created, &sec_none);
++  debug_printf ("opening user shared for '%W' at %p, created %d",
++		name, user_shared, created);
+   ProtectHandleINH (cygwin_user_h);
+   debug_printf ("user shared version %x", user_shared->version);
+-  if (reinit)
++  if (reinit || created)
+     user_shared->initialize ();
+   cygheap->shared_regions.user_shared_addr = user_shared;
+ }
+diff --git a/winsup/cygwin/mount.cc b/winsup/cygwin/mount.cc
+index ff0279336b..dad8c7b078 100644
+--- a/winsup/cygwin/mount.cc
++++ b/winsup/cygwin/mount.cc
+@@ -550,7 +550,8 @@ mount_info::create_root_entry (const PWCHAR root)
+   sys_wcstombs (native_root, PATH_MAX, root);
+   assert (*native_root != '\0');
+   if (add_item (native_root, "/",
+-		MOUNT_SYSTEM | MOUNT_IMMUTABLE | MOUNT_AUTOMATIC | MOUNT_NOACL)
++		MOUNT_SYSTEM | MOUNT_IMMUTABLE | MOUNT_AUTOMATIC | MOUNT_NOACL
++		| MOUNT_OVERRIDE)
+       < 0)
+     api_fatal ("add_item (\"%s\", \"/\", ...) failed, errno %d", native_root, errno);
+   /* Create a default cygdrive entry.  Note that this is a user entry.
+--
+2.14.x
+

@@ -1,0 +1,3 @@
+out/
+pkgroot/
+*.pkg.tar.zst

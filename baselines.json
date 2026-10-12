@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "repo": "REPLACE_OWNER/msys2-runtime-patch",
+  "comment": "keys = msys-2.0.dll ProductVersion prefix match (version-commit). match_on is compared case-insensitively against the DLL ProductVersion after trimming.",
+  "baselines": [
+    {
+      "id": "3.6.7-fb42d713",
+      "git_for_windows": "2.54.0.windows.1",
+      "cygwin_tag": "cygwin-3.6.7",
+      "runtime_commit": "fb42d71358dd896ab324c52970f7d03f9ab0dfe5",
+      "match_on": "3.6.7-fb42d71358dd896ab324c52970f7d03f9ab0dfe5",
+      "pkgbuild_commit": "18d02e2d65ce",
+      "release_tag": "v3.6.7-fb42d713",
+      "variants": {
+        "default": {
+          "patch": "patches/0001-cygwin-create-root-entry-mount-override.patch",
+          "asset": "msys-2.0.dll"
+        },
+        "alt": {
+          "patch": "patches/0002-cygwin-add-item-idempotent-noop.patch",
+          "asset": "msys-2.0.dll.alt-noop"
+        }
+      }
+    }
+  ]
+}

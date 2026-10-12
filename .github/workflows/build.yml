@@ -1,0 +1,102 @@
+name: build
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "patches/**"
+      - "scripts/build.sh"
+      - "baselines.json"
+      - ".github/workflows/build.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - baseline: "3.6.7-fb42d713"
+            cygwin_tag: "cygwin-3.6.7"
+            runtime_commit: "fb42d71358dd896ab324c52970f7d03f9ab0dfe5"
+            pkgbuild_commit: "18d02e2d65ce"
+            release_tag: "v3.6.7-fb42d713"
+            variant: "default"
+            patch: "patches/0001-cygwin-create-root-entry-mount-override.patch"
+            asset: "msys-2.0.dll"
+          - baseline: "3.6.7-fb42d713"
+            cygwin_tag: "cygwin-3.6.7"
+            runtime_commit: "fb42d71358dd896ab324c52970f7d03f9ab0dfe5"
+            pkgbuild_commit: "18d02e2d65ce"
+            release_tag: "v3.6.7-fb42d713"
+            variant: "alt"
+            patch: "patches/0002-cygwin-add-item-idempotent-noop.patch"
+            asset: "msys-2.0.dll.alt-noop"
+
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: MSYS
+          update: true
+          install: >-
+            git
+            make
+            patch
+            autotools
+            cocom
+            docbook-xsl
+            gcc
+            gettext-devel
+            libzstd-devel
+            libiconv-devel
+            mingw-w64-cross-crt
+            mingw-w64-cross-gcc
+            mingw-w64-cross-zlib
+            perl
+            xmlto
+            zlib-devel
+
+      - name: Build patched msys-2.0.dll
+        env:
+          CYGWIN_TAG: ${{ matrix.cygwin_tag }}
+          RUNTIME_COMMIT: ${{ matrix.runtime_commit }}
+          PKGBUILD_COMMIT: ${{ matrix.pkgbuild_commit }}
+          PATCH_FILE: ${{ matrix.patch }}
+          OUT_DIR: out
+        run: bash scripts/build.sh
+
+      - name: Rename asset
+        shell: pwsh
+        run: |
+          Move-Item out/msys-2.0.dll "out/${{ matrix.asset }}" -Force
+          Move-Item out/msys-2.0.dll.sha256 "out/${{ matrix.asset }}.sha256" -Force
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: msys20dll-${{ matrix.release_tag }}-${{ matrix.variant }}
+          path: out/
+
+      - name: Attach to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ matrix.release_tag }}
+          name: Patched msys-2.0.dll ${{ matrix.baseline }} (${{ matrix.variant }} variant)
+          body: |
+            Built from Cygwin ${{ matrix.cygwin_tag }} + msys2 patch set @ ${{ matrix.pkgbuild_commit }},
+            fix patch: `${{ matrix.patch }}`.
+
+            Install with `Apply-Patch.ps1` from the repo root; see README.
+          files: |
+            out/${{ matrix.asset }}
+            out/${{ matrix.asset }}.sha256
+            out/source-info.json
