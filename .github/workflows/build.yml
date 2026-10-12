@@ -72,7 +72,6 @@ jobs:
           RUNTIME_COMMIT: ${{ matrix.runtime_commit }}
           PKGBUILD_COMMIT: ${{ matrix.pkgbuild_commit }}
           PATCH_FILE: ${{ matrix.patch }}
-          OUT_DIR: out
         run: bash scripts/build.sh
 
       - name: Rename asset
