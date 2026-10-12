@@ -23,7 +23,8 @@ jobs:
           - baseline: "3.6.7-fb42d713"
             cygwin_tag: "cygwin-3.6.7"
             runtime_commit: "fb42d71358dd896ab324c52970f7d03f9ab0dfe5"
-            pkgbuild_commit: "18d02e2d65ce"
+            pkgbuild_repo: "git-for-windows/msys2-packages"
+            pkgbuild_commit: "bdd321dbba08"
             release_tag: "v3.6.7-fb42d713"
             variant: "default"
             patch: "patches/0001-cygwin-create-root-entry-mount-override.patch"
@@ -31,7 +32,8 @@ jobs:
           - baseline: "3.6.7-fb42d713"
             cygwin_tag: "cygwin-3.6.7"
             runtime_commit: "fb42d71358dd896ab324c52970f7d03f9ab0dfe5"
-            pkgbuild_commit: "18d02e2d65ce"
+            pkgbuild_repo: "git-for-windows/msys2-packages"
+            pkgbuild_commit: "bdd321dbba08"
             release_tag: "v3.6.7-fb42d713"
             variant: "alt"
             patch: "patches/0002-cygwin-add-item-idempotent-noop.patch"
@@ -70,6 +72,7 @@ jobs:
         env:
           CYGWIN_TAG: ${{ matrix.cygwin_tag }}
           RUNTIME_COMMIT: ${{ matrix.runtime_commit }}
+          PKGBUILD_REPO: ${{ matrix.pkgbuild_repo }}
           PKGBUILD_COMMIT: ${{ matrix.pkgbuild_commit }}
           PATCH_FILE: ${{ matrix.patch }}
         run: bash scripts/build.sh

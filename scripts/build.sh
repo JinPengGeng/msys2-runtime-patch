@@ -6,15 +6,19 @@
 #   CYGWIN_TAG      e.g. cygwin-3.6.7
 #   RUNTIME_COMMIT  exact msys2-runtime commit the shipped DLL reports
 #                   (embedded via --with-msys2-runtime-commit)
-#   PKGBUILD_COMMIT msys2/MSYS2-packages commit whose msys2-runtime/
-#                   PKGBUILD matches the Cygwin rebase era
+#   PKGBUILD_REPO   repo holding the PKGBUILD + patch set matching the
+#                   shipped DLL's build chain (Git for Windows ships a
+#                   61-patch chain, upstream MSYS2 only 40 — a DLL built
+#                   from the wrong chain hangs at sh startup)
+#   PKGBUILD_COMMIT pinned commit of that repo for the baseline era
 #   PATCH_FILE      fix patch to apply on top (repo-relative)
-#   OUT_DIR         artifact output dir (default ./out)
+#   OUT_DIR         artifact output dir (default <repo>/out)
 
 set -euo pipefail
 
 : "${CYGWIN_TAG:?}"
 : "${RUNTIME_COMMIT:?}"
+: "${PKGBUILD_REPO:?}"
 : "${PKGBUILD_COMMIT:?}"
 : "${PATCH_FILE:?}"
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -28,9 +32,9 @@ WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 cd "$WORK"
 
-echo "::group::Fetch PKGBUILD @ ${PKGBUILD_COMMIT}"
+echo "::group::Fetch PKGBUILD from ${PKGBUILD_REPO}@${PKGBUILD_COMMIT}"
 git clone --quiet --filter=blob:none --no-checkout \
-  https://github.com/msys2/MSYS2-packages.git msp
+  "https://github.com/${PKGBUILD_REPO}.git" msp
 cd msp
 git -c advice.detachedHead=false checkout --quiet "$PKGBUILD_COMMIT" -- msys2-runtime
 cd msys2-runtime
