@@ -47,12 +47,17 @@ echo "::group::Fetch sources + official msys2 patch set (makepkg --nobuild)"
 makepkg --nobuild --skipinteg --noconfirm --needed
 echo "::endgroup::"
 
-echo "::group::Pin runtime commit + apply fix patch"
+echo "::group::Pin runtime commit + apply patches"
 # Make the built DLL report the same ProductVersion as the DLL it replaces
 # (version-commit), so Apply-Patch.ps1 can fingerprint-match it.
 echo -n "$RUNTIME_COMMIT" > src/msys2-runtime.commit
 (
   cd src/msys2-runtime
+  # toolchain-era compatibility: binutils 2.47 dropped bfd_boolean
+  # (upstream 154c310b, cherry-picked; baseline predates it)
+  TOOLCHAIN_PATCH="patches/0000-cygwin-dumper-binutils-2.47.patch"
+  git apply --check "${REPO_ROOT}/${TOOLCHAIN_PATCH}"
+  git apply "${REPO_ROOT}/${TOOLCHAIN_PATCH}"
   git apply --check "$PATCH_PATH"
   git apply "$PATCH_PATH"
   git diff --stat
