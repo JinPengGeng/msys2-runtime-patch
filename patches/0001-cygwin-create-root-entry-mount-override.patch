@@ -62,7 +62,7 @@ index ff0279336b..dad8c7b078 100644
 --- a/winsup/cygwin/mount.cc
 +++ b/winsup/cygwin/mount.cc
 @@ -550,7 +550,8 @@ mount_info::create_root_entry (const PWCHAR root)
-   sys_wcstombs (native_root, PATH_MAX, root);
+   sys_wcstombs_path (native_root, PATH_MAX, root);
    assert (*native_root != '\0');
    if (add_item (native_root, "/",
 -		MOUNT_SYSTEM | MOUNT_IMMUTABLE | MOUNT_AUTOMATIC | MOUNT_NOACL)
