@@ -33,8 +33,9 @@ git clone --quiet --filter=blob:none --no-checkout \
 cd msp
 git -c advice.detachedHead=false checkout --quiet "$PKGBUILD_COMMIT" -- msys2-runtime
 cd msys2-runtime
-# sourceware git:// is blocked on some runners; use https
-sed -i "s#git://sourceware.org/git/newlib-cygwin.git#https://sourceware.org/git/newlib-cygwin.git#g" PKGBUILD
+# sourceware git:// protocol may be blocked on some runners; keep the git
+# source marker but force https transport.
+sed -i "s#git://sourceware.org/git/newlib-cygwin.git#git+https://sourceware.org/git/newlib-cygwin.git#g" PKGBUILD
 echo "::endgroup::"
 
 echo "::group::Fetch sources + official msys2 patch set (makepkg --nobuild)"
