@@ -148,19 +148,43 @@ Copy-Item $newDll $DllPath -Force
 $newVer = (Get-Item $DllPath).VersionInfo.ProductVersion
 Write-Host "Replaced. New ProductVersion: $newVer" -ForegroundColor Green
 
-# --- 5. probe: serial + concurrent starts -----------------------------------
+# --- 5. probe: serial + concurrent starts (timeout + auto-rollback) ---------
 $sh = Join-Path $GitRoot 'usr\bin\sh.exe'
+# A healthy sh starts in <1s. Under the add_item race a *patched* process may
+# still wait out the 15s spinlock before succeeding, so allow generous margin;
+# a true hang (bad build) never exits on its own.
+$probeTimeoutSec = 45
 $fail = 0
-foreach ($i in 1..3) {
-  & $sh -c "exit 0"; if ($LASTEXITCODE -ne 0) { $fail++ }
+
+function Invoke-ShProbe([int]$count) {
+  $procs = 1..$count | ForEach-Object {
+    Start-Process $sh -ArgumentList '-c','exit 0' -PassThru -WindowStyle Hidden
+  }
+  $procs | Wait-Process -Timeout $probeTimeoutSec -ErrorAction SilentlyContinue
+  foreach ($p in $procs) {
+    if (-not $p.HasExited) {
+      $p | Stop-Process -Force -ErrorAction SilentlyContinue
+      $script:fail++
+    } elseif ($p.ExitCode -ne 0) { $script:fail++ }
+  }
 }
-$jobs = 1..8 | ForEach-Object { Start-Process $sh -ArgumentList '-c','exit 0' -PassThru -WindowStyle Hidden }
-$jobs | Wait-Process -Timeout 30 -ErrorAction SilentlyContinue
-$fail += @($jobs | Where-Object { -not $_.HasExited -or $_.ExitCode -ne 0 }).Count
+
+foreach ($i in 1..3) { Invoke-ShProbe 1 }   # serial
+Invoke-ShProbe 15                            # concurrent burst (original failure condition)
 
 if ($fail -eq 0) {
-  Write-Host "Probe passed: 3 serial + 8 concurrent sh starts OK." -ForegroundColor Green
+  Write-Host "Probe passed: 3 serial + 15 concurrent sh starts OK." -ForegroundColor Green
 } else {
-  Write-Host "Probe reported $fail failure(s). Restore with Restore-Patch.ps1 and report an issue." -ForegroundColor Red
+  Write-Host "Probe reported $fail failure(s); rolling back to the original DLL..." -ForegroundColor Red
+  $restored = $false
+  foreach ($t in 1..10) {
+    try { Copy-Item $bak $DllPath -Force -ErrorAction Stop; $restored = $true; break }
+    catch { Start-Sleep -Milliseconds 300 }   # a killed probe may still hold the file
+  }
+  if ($restored) {
+    Write-Host "Rolled back to $bak. Report an issue with the probe output above." -ForegroundColor Yellow
+  } else {
+    Write-Host "Rollback copy FAILED; run Restore-Patch.ps1 manually." -ForegroundColor Red
+  }
   exit 3
 }

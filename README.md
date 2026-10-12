@@ -82,7 +82,9 @@ What Apply-Patch.ps1 does, in order:
 3. Kills running processes that have `msys-2.0.dll` loaded (lists them first, asks for confirmation).
 4. Downloads the matching patched DLL from this repo's Releases, verifies its SHA256.
 5. Backs up your original as `msys-2.0.dll.orig` (kept; Restore uses it).
-6. Replaces the DLL, then runs `sh -c "exit 0"` probes (serial + burst) to verify.
+6. Replaces the DLL, then runs `sh -c "exit 0"` probes (serial + burst, with
+   timeouts) to verify; on probe failure it automatically rolls back to the
+   backup.
 
 ## Warnings — read before applying
 
